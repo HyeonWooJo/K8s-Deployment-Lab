@@ -1,0 +1,95 @@
+# Loki Stack Values
+# Grafana 공식 Helm charts를 subchart로 사용합니다
+# - loki: 로그 저장소
+# - promtail: 로그 수집 에이전트
+# - grafana: 로그 시각화 대시보드
+
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+  config:
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /loki/boltdb-shipper-active
+        cache_location: /loki/boltdb-shipper-cache
+        shared_store: filesystem
+      filesystem:
+        directory: /loki/chunks
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+    chunk_store_config:
+      max_look_back_period: 0s
+    table_manager:
+      retention_deletes_enabled: false
+      retention_period: 0s
+  service:
+    type: ClusterIP
+    port: 3100
+
+promtail:
+  enabled: true
+  config:
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+    snippets:
+      pipelineStages:
+        - docker: {}
+        - json:
+            expressions:
+              output: log
+              stream: stream
+              attrs:
+        - json:
+            expressions:
+              tag:
+            source: attrs
+        - regex:
+            expression: (?P<container_name>(?:[^|]*))\|(?P<image_name>(?:[^|]*))\|(?P<image_id>(?:[^|]*))\|(?P<container_id>(?:[^|]*))
+            source: tag
+        - timestamp:
+            format: RFC3339Nano
+            source: time
+        - labels:
+            stream:
+            container_name:
+            image_name:
+        - output:
+            source: output
+
+grafana:
+  enabled: true
+  adminUser: admin
+  adminPassword: admin  # 프로덕션에서는 Secret으로 관리하세요
+  service:
+    type: NodePort
+    nodePort: 30003  # kind-config.yaml의 8084 포트 매핑과 연결
+    port: 80
+  persistence:
+    enabled: true
+    size: 10Gi
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Loki
+          type: loki
+          access: proxy
+          url: http://loki:3100
+          isDefault: true
+          editable: true
+          jsonData:
+            maxLines: 1000
+
