@@ -1,0 +1,7 @@
+# Fleet 배포 설정 - my-python-app Helm 차트
+namespace: default
+
+helm:
+  chart: .
+  releaseName: my-python-app
+  # values.yaml 파일을 자동으로 사용 (기본값 사용 시 생략 가능)
